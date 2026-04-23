@@ -2,10 +2,29 @@ import { getStore } from "@netlify/blobs";
 
 const HUBSPOT_API = "https://api.hubapi.com";
 
-// Cache for owner list
 let ownersCache = null;
 let ownersCacheAt = 0;
-const OWNERS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const OWNERS_CACHE_TTL = 5 * 60 * 1000;
+
+function parseUser(req) {
+  const auth = req.headers.get("authorization") || "";
+  if (!auth.startsWith("Bearer ")) return null;
+  const token = auth.slice(7);
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    );
+    if (!payload.email) return null;
+    return {
+      email: payload.email,
+      name: payload.user_metadata?.full_name || payload.email.split("@")[0]
+    };
+  } catch {
+    return null;
+  }
+}
 
 async function getOwners(token) {
   if (ownersCache && (Date.now() - ownersCacheAt < OWNERS_CACHE_TTL)) {
@@ -38,7 +57,14 @@ async function updateTicketOwner(token, ticketId, ownerId) {
 }
 
 export default async function handler(req, context) {
-  if (!context.clientContext?.user) {
+  const user = context.clientContext?.user
+    ? {
+        email: context.clientContext.user.email,
+        name: context.clientContext.user.user_metadata?.full_name || context.clientContext.user.email.split("@")[0]
+      }
+    : parseUser(req);
+
+  if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { "Content-Type": "application/json" }
     });
@@ -74,7 +100,6 @@ export default async function handler(req, context) {
       }
       await updateTicketOwner(token, ticketId, ownerId);
 
-      // Update cached ticket so UI reflects change immediately
       const cache = getStore({ name: "triage-cache", consistency: "strong" });
       const cached = await cache.get("tickets", { type: "json" });
       if (cached) {
