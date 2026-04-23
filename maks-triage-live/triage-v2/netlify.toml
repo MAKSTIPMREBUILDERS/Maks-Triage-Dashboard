@@ -1,0 +1,41 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+[functions."refresh-tickets"]
+  schedule = "*/5 * * * *"
+
+[[redirects]]
+  from = "/api/tickets"
+  to = "/.netlify/functions/get-tickets"
+  status = 200
+
+[[redirects]]
+  from = "/api/handled"
+  to = "/.netlify/functions/handled"
+  status = 200
+
+[[redirects]]
+  from = "/api/assign"
+  to = "/.netlify/functions/assign-owner"
+  status = 200
+
+[[redirects]]
+  from = "/api/reply"
+  to = "/.netlify/functions/send-reply"
+  status = 200
+
+[[redirects]]
+  from = "/api/refresh"
+  to = "/.netlify/functions/refresh-tickets"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

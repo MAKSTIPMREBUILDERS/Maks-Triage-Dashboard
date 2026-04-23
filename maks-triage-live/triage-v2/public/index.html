@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAKS Triage</title>
+<meta name="description" content="Live customer support triage dashboard for MAKS TIPM Rebuilders">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🔧%3C/text%3E%3C/svg%3E">
+<script type="text/javascript" src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+<style>
+:root {
+  --bg: #FAFAF7;
+  --surface: #FFFFFF;
+  --surface-2: #F1EFE8;
+  --border: rgba(0,0,0,0.1);
+  --border-strong: rgba(0,0,0,0.2);
+  --text: #1A1A1A;
+  --text-muted: #5F5E5A;
+  --text-subtle: #888780;
+  --info-bg: #E6F1FB;
+  --info-text: #0C447C;
+  --success: #1D9E75;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1A1A19;
+    --surface: #252523;
+    --surface-2: #2C2C2A;
+    --border: rgba(255,255,255,0.1);
+    --border-strong: rgba(255,255,255,0.2);
+    --text: #F5F4F0;
+    --text-muted: #B4B2A9;
+    --text-subtle: #888780;
+    --info-bg: #042C53;
+    --info-text: #B5D4F4;
+    --success: #5DCAA5;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+button { font-family: inherit; }
+input, textarea, select { font-family: inherit; }
+
+.container { max-width: 960px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 12px; flex-wrap: wrap; }
+.topbar h1 { font-size: 20px; font-weight: 500; margin: 0; }
+.topbar .sub { color: var(--text-muted); font-size: 13px; margin: 2px 0 0; }
+.user-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+.user-info button { font-size: 12px; padding: 4px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); cursor: pointer; }
+
+.refresh-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; font-size: 12px; color: var(--text-subtle); }
+.refresh-row button { font-size: 12px; padding: 3px 10px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer; }
+.refresh-row button:hover { color: var(--text); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+.stat { border-radius: var(--radius-md); padding: 12px 14px; cursor: pointer; transition: transform 0.1s; }
+.stat:hover { transform: translateY(-1px); }
+.stat-label { font-size: 12px; margin: 0 0 2px; font-weight: 500; }
+.stat-num { font-size: 24px; font-weight: 500; margin: 0; line-height: 1.1; }
+.stat-hint { font-size: 11px; margin: 4px 0 0; }
+.s-fire { background: #FCEBEB; } .s-fire .stat-label, .s-fire .stat-num, .s-fire .stat-hint { color: #791F1F; }
+.s-hot  { background: #FAEEDA; } .s-hot  .stat-label, .s-hot  .stat-num, .s-hot  .stat-hint { color: #633806; }
+.s-core { background: #FAECE7; } .s-core .stat-label, .s-core .stat-num, .s-core .stat-hint { color: #712B13; }
+.s-warm { background: #E6F1FB; } .s-warm .stat-label, .s-warm .stat-num, .s-warm .stat-hint { color: #0C447C; }
+@media (prefers-color-scheme: dark) {
+  .s-fire { background: #501313; } .s-fire .stat-label, .s-fire .stat-num, .s-fire .stat-hint { color: #F7C1C1; }
+  .s-hot  { background: #412402; } .s-hot  .stat-label, .s-hot  .stat-num, .s-hot  .stat-hint { color: #FAC775; }
+  .s-core { background: #4A1B0C; } .s-core .stat-label, .s-core .stat-num, .s-core .stat-hint { color: #F5C4B3; }
+  .s-warm { background: #042C53; } .s-warm .stat-label, .s-warm .stat-num, .s-warm .stat-hint { color: #B5D4F4; }
+}
+
+.controls { display: flex; gap: 12px; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: var(--radius-md); flex-wrap: wrap; }
+.seg button { padding: 6px 12px; font-size: 13px; border: none; background: transparent; border-radius: var(--radius-sm); cursor: pointer; color: var(--text-muted); }
+.seg button:hover { color: var(--text); }
+.seg button.active { background: var(--surface); color: var(--text); font-weight: 500; }
+.search { flex: 1; min-width: 200px; }
+.search input { width: 100%; padding: 8px 12px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text); }
+.search input:focus { outline: none; border-color: var(--border-strong); }
+
+.row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 10px; transition: opacity 0.2s; }
+.row-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 6px; }
+.row-title { font-size: 14px; font-weight: 500; margin: 0; line-height: 1.4; }
+.row-meta { display: flex; gap: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+.row-meta strong { font-weight: 500; color: var(--text); }
+.row-meta a { color: var(--info-text); text-decoration: none; }
+.row-reason { font-size: 13px; color: var(--text-muted); margin: 0 0 8px; line-height: 1.5; }
+.row-snippet { font-size: 13px; color: var(--text-muted); margin: 0 0 10px; line-height: 1.5; font-style: italic; padding-left: 10px; border-left: 2px solid var(--border-strong); }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.row-actions button, .row-actions a { font-size: 12px; padding: 5px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; color: var(--text); text-decoration: none; transition: background 0.15s; }
+.row-actions button:hover, .row-actions a:hover { background: var(--surface-2); }
+.row-actions button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+.row-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.status-handled { opacity: 0.55; background: var(--surface-2); }
+.handled-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--success); font-weight: 500; }
+.owner-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; background: var(--info-bg); color: var(--info-text); padding: 2px 8px; border-radius: 4px; }
+
+.pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+.p-fire { background: #FCEBEB; color: #791F1F; }
+.p-hot { background: #FAEEDA; color: #633806; }
+.p-warm { background: #E6F1FB; color: #0C447C; }
+.p-core { background: #FAECE7; color: #712B13; }
+.p-stale { background: #F1EFE8; color: #444441; }
+@media (prefers-color-scheme: dark) {
+  .p-fire { background: #501313; color: #F7C1C1; }
+  .p-hot { background: #412402; color: #FAC775; }
+  .p-warm { background: #042C53; color: #B5D4F4; }
+  .p-core { background: #4A1B0C; color: #F5C4B3; }
+  .p-stale { background: #2C2C2A; color: #D3D1C7; }
+}
+
+.drawer { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.drawer.open { display: block; }
+.drawer-label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 6px; }
+.drawer textarea { width: 100%; min-height: 180px; padding: 10px 12px; font-size: 13px; line-height: 1.5; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text); font-family: var(--font-mono); resize: vertical; }
+.drawer textarea:focus { outline: none; border-color: var(--border-strong); }
+.drawer-controls { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+.drawer select { padding: 6px 10px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); }
+
+.empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 14px; }
+.loading { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 13px; }
+
+.login-gate { display: flex; align-items: center; justify-content: center; min-height: 70vh; text-align: center; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 2.5rem 2rem; max-width: 400px; }
+.login-card h2 { margin: 0 0 8px; font-size: 20px; font-weight: 500; }
+.login-card p { margin: 0 0 20px; color: var(--text-muted); font-size: 14px; }
+.login-card button { padding: 10px 24px; font-size: 14px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 500; }
+
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: var(--radius-md); font-size: 13px; font-weight: 500; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 100; max-width: 90%; }
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.toast.error { background: #A32D2D; color: white; }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="login-gate" class="login-gate">
+  <div class="login-card">
+    <h2>MAKS Triage</h2>
+    <p>Sign in with your team account to view and work the customer queue.</p>
+    <button onclick="netlifyIdentity.open('login')">Sign in</button>
+  </div>
+</div>
+
+<div id="app" class="container hidden">
+  <div class="topbar">
+    <div>
+      <h1>Support triage</h1>
+      <p class="sub">Customer-waiting queue, sorted by urgency</p>
+    </div>
+    <div class="user-info">
+      <span id="user-name"></span>
+      <button onclick="netlifyIdentity.logout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="refresh-row">
+    <span id="refresh-status">Loading...</span>
+    <button id="refresh-btn" onclick="manualRefresh()">Refresh now</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat s-fire" data-filter="fire">
+      <p class="stat-label">On fire</p>
+      <p class="stat-num" id="c-fire">—</p>
+      <p class="stat-hint">chargeback / safety</p>
+    </div>
+    <div class="stat s-hot" data-filter="hot">
+      <p class="stat-label">Hot</p>
+      <p class="stat-num" id="c-hot">—</p>
+      <p class="stat-hint">warranty / refund</p>
+    </div>
+    <div class="stat s-core" data-filter="core">
+      <p class="stat-label">Core refunds</p>
+      <p class="stat-num" id="c-core">—</p>
+      <p class="stat-hint">money owed back</p>
+    </div>
+    <div class="stat s-warm" data-filter="warm">
+      <p class="stat-label">Warm</p>
+      <p class="stat-num" id="c-warm">—</p>
+      <p class="stat-hint">routine questions</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" id="filter-bar">
+      <button data-f="open" class="active">Open</button>
+      <button data-f="all">All</button>
+      <button data-f="fire">On fire</button>
+      <button data-f="hot">Hot</button>
+      <button data-f="core">Cores</button>
+      <button data-f="warm">Warm</button>
+      <button data-f="handled">Handled</button>
+    </div>
+    <div class="search">
+      <input type="search" id="search" placeholder="Search customer, order, notes...">
+    </div>
+  </div>
+
+  <div id="list"><div class="loading">Loading tickets...</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const priorityLabels = { fire: "On fire", hot: "Hot", core: "Core refund", warm: "Warm", stale: "Out of warranty" };
+const priorityOrder = { fire: 0, hot: 1, core: 2, warm: 3, stale: 4 };
+
+let state = {
+  tickets: [],
+  handled: {},
+  owners: [],
+  currentUser: null,
+  currentFilter: "open",
+  currentSearch: "",
+  lastFetched: null
+};
+
+function escape(s) { return (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+function showToast(msg, isError) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isError ? " error" : "");
+  setTimeout(() => t.className = "toast", 2500);
+}
+
+function formatRelative(iso) {
+  if (!iso) return "never";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return Math.floor(diff / 60000) + "m ago";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
+  return Math.floor(diff / 86400000) + "d ago";
+}
+
+async function api(path, options = {}) {
+  const token = await netlifyIdentity.currentUser()?.jwt();
+  if (!token) {
+    netlifyIdentity.open("login");
+    throw new Error("Not authenticated");
+  }
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...options.headers
+    }
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: "Request failed" }));
+    throw new Error(err.error || `Error ${response.status}`);
+  }
+  return response.json();
+}
+
+async function loadTickets() {
+  try {
+    const data = await api("/api/tickets");
+    state.tickets = data.tickets || [];
+    state.handled = data.handled || {};
+    state.lastFetched = data.fetchedAt;
+    state.currentUser = data.currentUser;
+
+    if (state.currentUser) {
+      document.getElementById("user-name").textContent = state.currentUser.name;
+    }
+
+    updateStats();
+    render();
+    updateRefreshStatus();
+
+    if (data.empty) {
+      document.getElementById("list").innerHTML = `<div class="empty">${escape(data.message)}<br><br><button onclick="manualRefresh()" style="padding: 8px 16px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius-md); color: var(--text);">Run refresh now</button></div>`;
+    }
+  } catch (err) {
+    console.error(err);
+    showToast("Failed to load tickets: " + err.message, true);
+  }
+}
+
+async function loadOwners() {
+  try {
+    const data = await api("/api/assign");
+    state.owners = data.owners || [];
+  } catch (err) {
+    console.error("Could not load owners:", err);
+  }
+}
+
+async function manualRefresh() {
+  const btn = document.getElementById("refresh-btn");
+  btn.disabled = true;
+  btn.textContent = "Refreshing...";
+  try {
+    await api("/api/refresh", { method: "POST" });
+    await loadTickets();
+    showToast("Data refreshed from HubSpot");
+  } catch (err) {
+    showToast("Refresh failed: " + err.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Refresh now";
+  }
+}
+
+function updateStats() {
+  const counts = { fire: 0, hot: 0, core: 0, warm: 0, stale: 0 };
+  state.tickets.forEach(t => {
+    if (!state.handled[t.id]) counts[t.p] = (counts[t.p] || 0) + 1;
+  });
+  document.getElementById("c-fire").textContent = counts.fire;
+  document.getElementById("c-hot").textContent = counts.hot;
+  document.getElementById("c-core").textContent = counts.core;
+  document.getElementById("c-warm").textContent = counts.warm + counts.stale;
+}
+
+function updateRefreshStatus() {
+  const el = document.getElementById("refresh-status");
+  if (!state.lastFetched) {
+    el.textContent = "Never refreshed";
+  } else {
+    el.textContent = `${state.tickets.length} tickets • refreshed ${formatRelative(state.lastFetched)} • auto-refresh every 5 min`;
+  }
+}
+
+function render() {
+  const list = document.getElementById("list");
+  let filtered = state.tickets.slice();
+
+  if (state.currentFilter === "open") filtered = filtered.filter(t => !state.handled[t.id]);
+  else if (state.currentFilter === "handled") filtered = filtered.filter(t => state.handled[t.id]);
+  else if (state.currentFilter === "warm") filtered = filtered.filter(t => (t.p === "warm" || t.p === "stale") && !state.handled[t.id]);
+  else if (state.currentFilter !== "all") filtered = filtered.filter(t => t.p === state.currentFilter && !state.handled[t.id]);
+
+  if (state.currentSearch) {
+    const s = state.currentSearch.toLowerCase();
+    filtered = filtered.filter(t =>
+      (t.cust || "").toLowerCase().includes(s) ||
+      (t.order || "").toLowerCase().includes(s) ||
+      (t.reason || "").toLowerCase().includes(s) ||
+      (t.snippet || "").toLowerCase().includes(s) ||
+      (t.assign || "").toLowerCase().includes(s) ||
+      (t.subject || "").toLowerCase().includes(s)
+    );
+  }
+
+  filtered.sort((a, b) => {
+    const pa = priorityOrder[a.p] || 99;
+    const pb = priorityOrder[b.p] || 99;
+    if (pa !== pb) return pa - pb;
+    return (b.daysWaiting || 0) - (a.daysWaiting || 0);
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">No tickets match this filter.</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(t => {
+    const handled = state.handled[t.id];
+    const owner = state.owners.find(o => o.id === t.hubspot_owner_id);
+    const ownerName = owner ? owner.name : null;
+
+    const ownerOptions = state.owners.map(o =>
+      `<option value="${o.id}" ${o.id === t.hubspot_owner_id ? "selected" : ""}>${escape(o.name)}</option>`
+    ).join("");
+
+    return `
+      <div class="row ${handled ? "status-handled" : ""}" data-id="${t.id}">
+        <div class="row-head">
+          <p class="row-title">${escape(t.cust)}${t.order ? " — " + escape(t.order) : ""}</p>
+          <span class="pill p-${t.p}">${priorityLabels[t.p]}</span>
+        </div>
+        <div class="row-meta">
+          <span>${escape(t.waited)}</span>
+          <span>•</span>
+          <span>Suggest: <strong>${escape(t.assign)}</strong></span>
+          ${ownerName ? `<span>•</span><span class="owner-badge">Owner: ${escape(ownerName)}</span>` : ""}
+          ${t.phone ? `<span>•</span><a href="tel:${escape(t.phone)}">${escape(t.phone)}</a>` : ""}
+          ${handled ? `<span>•</span><span class="handled-badge">✓ handled by ${escape(handled.by)} ${formatRelative(handled.at)}</span>` : ""}
+        </div>
+        <p class="row-reason">${escape(t.reason)}</p>
+        <p class="row-snippet">${escape(t.snippet)}</p>
+        <div class="row-actions">
+          <button data-action="toggle" data-id="${t.id}">Show reply</button>
+          <a href="https://app.hubspot.com/contacts/21300550/record/0-5/${t.id}" target="_blank" rel="noopener">Open in HubSpot ↗</a>
+          <button data-action="handle" data-id="${t.id}" class="${handled ? "" : "primary"}">${handled ? "Reopen" : "Mark handled"}</button>
+        </div>
+        <div class="drawer" id="drawer-${t.id}">
+          <p class="drawer-label">Suggested reply — edit before sending</p>
+          <textarea id="reply-${t.id}">${escape(t.draft)}</textarea>
+          <div class="drawer-controls">
+            <label style="font-size: 12px; color: var(--text-muted);">Assign to:</label>
+            <select id="owner-${t.id}">
+              <option value="">— keep current —</option>
+              ${ownerOptions}
+            </select>
+            <button data-action="assign" data-id="${t.id}">Save owner</button>
+            <div style="flex: 1;"></div>
+            <button data-action="note" data-id="${t.id}">Save as note</button>
+            <button data-action="send" data-id="${t.id}" class="primary">Send reply</button>
+          </div>
+          <p style="font-size: 11px; color: var(--text-subtle); margin: 8px 0 0;">
+            <strong>Send reply</strong> logs an email engagement on the ticket in HubSpot.
+            <strong>Save as note</strong> saves the draft as a note so you can review in HubSpot before sending.
+          </p>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function toggleHandled(ticketId) {
+  const wasHandled = !!state.handled[ticketId];
+  try {
+    await api("/api/handled", {
+      method: "POST",
+      body: JSON.stringify({ ticketId, action: wasHandled ? "unmark" : "mark" })
+    });
+    if (wasHandled) {
+      delete state.handled[ticketId];
+    } else {
+      state.handled[ticketId] = {
+        by: state.currentUser?.name || "you",
+        at: new Date().toISOString()
+      };
+    }
+    updateStats();
+    render();
+    showToast(wasHandled ? "Ticket reopened" : "Marked handled");
+  } catch (err) {
+    showToast("Failed: " + err.message, true);
+  }
+}
+
+async function assignOwner(ticketId) {
+  const select = document.getElementById(`owner-${ticketId}`);
+  const ownerId = select.value;
+  if (!ownerId) {
+    showToast("Pick an owner first", true);
+    return;
+  }
+  try {
+    await api("/api/assign", {
+      method: "POST",
+      body: JSON.stringify({ ticketId, ownerId })
+    });
+    const ticket = state.tickets.find(t => t.id === ticketId);
+    if (ticket) ticket.hubspot_owner_id = ownerId;
+    render();
+    showToast("Owner assigned in HubSpot");
+  } catch (err) {
+    showToast("Assign failed: " + err.message, true);
+  }
+}
+
+async function sendReply(ticketId, mode) {
+  const body = document.getElementById(`reply-${ticketId}`).value.trim();
+  if (!body) {
+    showToast("Write a reply first", true);
+    return;
+  }
+  const confirmMsg = mode === "note"
+    ? "Save this draft as a note on the ticket in HubSpot?"
+    : "Send this reply as an email and log it on the ticket?";
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const result = await api("/api/reply", {
+      method: "POST",
+      body: JSON.stringify({ ticketId, body, mode })
+    });
+    showToast(result.message || "Reply sent");
+    if (mode !== "note") {
+      // Auto-mark handled after sending
+      await toggleHandled(ticketId);
+    }
+  } catch (err) {
+    showToast("Send failed: " + err.message, true);
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const id = btn.dataset.id;
+
+  if (action === "toggle") {
+    document.getElementById("drawer-" + id).classList.toggle("open");
+  } else if (action === "handle") {
+    toggleHandled(id);
+  } else if (action === "assign") {
+    assignOwner(id);
+  } else if (action === "note") {
+    sendReply(id, "note");
+  } else if (action === "send") {
+    sendReply(id, "email");
+  }
+});
+
+document.querySelectorAll("#filter-bar button").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#filter-bar button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    state.currentFilter = b.dataset.f;
+    render();
+  });
+});
+
+document.querySelectorAll(".stat").forEach(s => {
+  s.addEventListener("click", () => {
+    const f = s.dataset.filter;
+    document.querySelectorAll("#filter-bar button").forEach(x => {
+      x.classList.toggle("active", x.dataset.f === f);
+    });
+    state.currentFilter = f;
+    render();
+  });
+});
+
+document.getElementById("search").addEventListener("input", (e) => {
+  state.currentSearch = e.target.value;
+  render();
+});
+
+// Auto-refresh every 60 seconds from cache (keeps shared state in sync)
+setInterval(() => {
+  if (netlifyIdentity.currentUser()) loadTickets();
+}, 60000);
+
+// Netlify Identity wiring
+netlifyIdentity.on("init", user => {
+  if (user) showApp();
+});
+netlifyIdentity.on("login", () => {
+  netlifyIdentity.close();
+  showApp();
+});
+netlifyIdentity.on("logout", () => {
+  document.getElementById("app").classList.add("hidden");
+  document.getElementById("login-gate").classList.remove("hidden");
+});
+
+function showApp() {
+  document.getElementById("login-gate").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  loadTickets();
+  loadOwners();
+}
+
+netlifyIdentity.init();
+</script>
+</body>
+</html>
