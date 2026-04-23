@@ -2,6 +2,26 @@ import { getStore } from "@netlify/blobs";
 
 const HUBSPOT_API = "https://api.hubapi.com";
 
+function parseUser(req) {
+  const auth = req.headers.get("authorization") || "";
+  if (!auth.startsWith("Bearer ")) return null;
+  const token = auth.slice(7);
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    );
+    if (!payload.email) return null;
+    return {
+      email: payload.email,
+      name: payload.user_metadata?.full_name || payload.email.split("@")[0]
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function getTicketContact(token, ticketId) {
   const response = await fetch(
     `${HUBSPOT_API}/crm/v4/objects/tickets/${ticketId}/associations/contacts`,
@@ -93,7 +113,14 @@ async function addNoteToTicket(token, ticketId, noteText) {
 }
 
 export default async function handler(req, context) {
-  if (!context.clientContext?.user) {
+  const user = context.clientContext?.user
+    ? {
+        email: context.clientContext.user.email,
+        name: context.clientContext.user.user_metadata?.full_name || context.clientContext.user.email.split("@")[0]
+      }
+    : parseUser(req);
+
+  if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { "Content-Type": "application/json" }
     });
@@ -112,9 +139,6 @@ export default async function handler(req, context) {
     });
   }
 
-  const user = context.clientContext.user;
-  const userName = user.user_metadata?.full_name || user.email.split("@")[0];
-
   try {
     const { ticketId, body, mode } = await req.json();
     if (!ticketId || !body) {
@@ -124,7 +148,7 @@ export default async function handler(req, context) {
     }
 
     if (mode === "note") {
-      const noteText = `[Draft reply staged by ${userName} via Triage Dashboard]\n\n${body}`;
+      const noteText = `[Draft reply staged by ${user.name} via Triage Dashboard]\n\n${body}`;
       await addNoteToTicket(token, ticketId, noteText);
 
       return new Response(JSON.stringify({
@@ -134,10 +158,9 @@ export default async function handler(req, context) {
       }), { status: 200, headers: { "Content-Type": "application/json" }});
     }
 
-    // Default: log as outbound email engagement
     const contact = await getTicketContact(token, ticketId);
     if (!contact) {
-      const noteText = `[Draft reply from ${userName}] — could not find associated contact, saved as note instead:\n\n${body}`;
+      const noteText = `[Draft reply from ${user.name}] — could not find associated contact, saved as note instead:\n\n${body}`;
       await addNoteToTicket(token, ticketId, noteText);
       return new Response(JSON.stringify({
         success: true,
@@ -146,12 +169,11 @@ export default async function handler(req, context) {
       }), { status: 200, headers: { "Content-Type": "application/json" }});
     }
 
-    await createEmailEngagement(token, ticketId, contact, body, user.email, userName);
+    await createEmailEngagement(token, ticketId, contact, body, user.email, user.name);
 
-    // Update cache: clear the "waiting" flag by noting who replied
     const state = getStore({ name: "triage-state", consistency: "strong" });
     const replies = (await state.get("replies", { type: "json" })) || {};
-    replies[ticketId] = { by: userName, at: new Date().toISOString() };
+    replies[ticketId] = { by: user.name, at: new Date().toISOString() };
     await state.setJSON("replies", replies);
 
     return new Response(JSON.stringify({
