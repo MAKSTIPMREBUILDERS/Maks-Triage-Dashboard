@@ -183,18 +183,22 @@ function buildReason(ticket, priority, days) {
 }
 
 async function fetchTicketsFromHubSpot(token) {
-  const response = await fetch(`${HUBSPOT_API}/crm/v3/objects/tickets/search`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const DATE_CUTOFF = "2026-01-01T00:00:00Z";
+  const MAX_PAGES = 10;
+  const PAGE_SIZE = 100;
+
+  const allTickets = [];
+  let after = undefined;
+  let pages = 0;
+
+  while (pages < MAX_PAGES) {
+    const body = {
       filterGroups: [{
         filters: [
           { propertyName: "hs_last_message_from_visitor", operator: "EQ", value: "true" },
           { propertyName: "hs_pipeline", operator: "EQ", value: SUPPORT_PIPELINE },
-          { propertyName: "hs_pipeline_stage", operator: "EQ", value: PIPELINE_STAGE_OPEN }
+          { propertyName: "hs_pipeline_stage", operator: "EQ", value: PIPELINE_STAGE_OPEN },
+          { propertyName: "hs_last_message_received_at", operator: "GTE", value: DATE_CUTOFF }
         ]
       }],
       properties: [
@@ -203,17 +207,35 @@ async function fetchTicketsFromHubSpot(token) {
         "hs_last_message_received_at", "hs_lastcontacted", "hs_lastmodifieddate"
       ],
       sorts: [{ propertyName: "hs_last_message_received_at", direction: "ASCENDING" }],
-      limit: 100
-    })
-  });
+      limit: PAGE_SIZE
+    };
+    if (after) body.after = after;
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`HubSpot API error ${response.status}: ${err}`);
+    const response = await fetch(`${HUBSPOT_API}/crm/v3/objects/tickets/search`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`HubSpot API error ${response.status}: ${err}`);
+    }
+
+    const data = await response.json();
+    const results = data.results || [];
+    allTickets.push(...results);
+
+    after = data.paging?.next?.after;
+    pages += 1;
+
+    if (!after || results.length < PAGE_SIZE) break;
   }
 
-  const data = await response.json();
-  return data.results || [];
+  return allTickets;
 }
 
 function processTicket(ticket) {
