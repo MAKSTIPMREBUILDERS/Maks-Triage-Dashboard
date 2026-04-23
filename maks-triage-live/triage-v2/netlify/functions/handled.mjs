@@ -1,14 +1,38 @@
 import { getStore } from "@netlify/blobs";
 
+function parseUser(req) {
+  const auth = req.headers.get("authorization") || "";
+  if (!auth.startsWith("Bearer ")) return null;
+  const token = auth.slice(7);
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(
+      Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8")
+    );
+    if (!payload.email) return null;
+    return {
+      email: payload.email,
+      name: payload.user_metadata?.full_name || payload.email.split("@")[0]
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default async function handler(req, context) {
-  if (!context.clientContext?.user) {
+  const user = context.clientContext?.user
+    ? {
+        email: context.clientContext.user.email,
+        name: context.clientContext.user.user_metadata?.full_name || context.clientContext.user.email.split("@")[0]
+      }
+    : parseUser(req);
+
+  if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401, headers: { "Content-Type": "application/json" }
     });
   }
-
-  const user = context.clientContext.user;
-  const userName = user.user_metadata?.full_name || user.email.split("@")[0];
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -29,7 +53,7 @@ export default async function handler(req, context) {
 
     if (action === "mark") {
       handled[ticketId] = {
-        by: userName,
+        by: user.name,
         email: user.email,
         at: new Date().toISOString()
       };
